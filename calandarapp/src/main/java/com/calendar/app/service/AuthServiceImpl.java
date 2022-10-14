@@ -5,10 +5,14 @@ import com.calendar.app.config.DataBaseHolder;
 import com.calendar.app.dto.AuthRequest;
 import com.calendar.app.dto.AuthResponse;
 import com.calendar.app.entity.Company;
+import com.calendar.app.entity.User;
+import com.calendar.app.repository.UserRepository;
 import com.calendar.app.security.TenantInformation;
 import com.calendar.app.util.AppStringUtils;
+import com.calendar.app.util.BasicAuthUtils;
 import com.calendar.app.util.JwtTokenUtil;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.authentication.AnonymousAuthenticationToken;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -34,14 +38,15 @@ public class AuthServiceImpl implements AuthService {
     private final JwtTokenUtil jwtTokenUtil;
     private final CompanyService masterTenantService;
     private final TenantService tenantService;
-
+    private final UserRepository userRepository;
     private AuthenticationManager authManager;
 
     public AuthServiceImpl(JwtTokenUtil jwtTokenUtil, CompanyService masterTenantService, TenantService tenantService,
-                           AuthenticationManager authManager) {
+                           UserRepository userRepository, AuthenticationManager authManager) {
         this.jwtTokenUtil = jwtTokenUtil;
         this.masterTenantService = masterTenantService;
         this.tenantService = tenantService;
+        this.userRepository = userRepository;
         this.authManager = authManager;
     }
 
@@ -68,6 +73,15 @@ public class AuthServiceImpl implements AuthService {
             log.error(AppStringUtils.exceptionToString(e));
             throw new UsernameNotFoundException("User not found exception");
         }
+    }
+
+    public User getLoggedUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || authentication instanceof AnonymousAuthenticationToken)
+            throw new BadCredentialsException("Authorization error. Or empty barear token or bad credentials.");
+        String userName = BasicAuthUtils.getUserName(authentication);
+        return userRepository.findByUserName(userName)
+                .orElseThrow(() -> new UsernameNotFoundException("Logged user not found"));
     }
 
     private void handleTenant(AuthRequest request) {

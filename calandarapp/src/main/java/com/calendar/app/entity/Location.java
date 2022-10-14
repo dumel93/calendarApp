@@ -20,7 +20,6 @@ public class Location {
 
     @Id
     @Column(name = "location_id", updatable = false, nullable = false, columnDefinition = "VARCHAR(36)")
-    @GeneratedValue(generator = "uuid2")
     @GenericGenerator(name = "uuid2", strategy = "uuid2")
     @Type(type = "uuid-char")
     private UUID id;

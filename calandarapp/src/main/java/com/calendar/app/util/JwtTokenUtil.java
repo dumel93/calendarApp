@@ -15,8 +15,7 @@ import java.util.function.Function;
 @Component
 public class JwtTokenUtil  {
 
-//    public static final long ACCESS_TOKEN_VALIDITY_5_MINUTES = 5 * 60;
-    public static final long ACCESS_TOKEN_VALIDITY_5_MINUTES = 60 * 60;
+    public static final long ACCESS_TOKEN_VALIDITY_15_MINUTES = 15 * 60;
 
     @Value("${secret.key}")
     public String SIGNING_KEY;
@@ -62,7 +61,7 @@ public class JwtTokenUtil  {
                 .setClaims(claims)
                 .setIssuer("user")
                 .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + ACCESS_TOKEN_VALIDITY_5_MINUTES * 1000))
+                .setExpiration(new Date(System.currentTimeMillis() + ACCESS_TOKEN_VALIDITY_15_MINUTES * 1000))
                 .signWith(SignatureAlgorithm.HS256, SIGNING_KEY)
                 .compact();
     }

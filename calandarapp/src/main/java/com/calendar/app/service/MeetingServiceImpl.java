@@ -14,13 +14,7 @@ import com.calendar.app.repository.LocationRepository;
 import com.calendar.app.repository.MeetingRepository;
 import com.calendar.app.repository.UserRepository;
 import com.calendar.app.specification.MeetingSpecification;
-import com.calendar.app.util.BasicAuthUtils;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.authentication.AnonymousAuthenticationToken;
-import org.springframework.security.authentication.BadCredentialsException;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
@@ -28,7 +22,6 @@ import javax.transaction.Transactional;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -38,7 +31,6 @@ import static java.time.ZoneId.systemDefault;
 
 @Service
 @Transactional
-@RequiredArgsConstructor
 @Slf4j
 public class MeetingServiceImpl implements MeetingService {
 
@@ -46,31 +38,28 @@ public class MeetingServiceImpl implements MeetingService {
     private final UserRepository userRepository;
     private final LocationRepository locationRepository;
     private final MeetingMapper meetingMapper;
+    private final AuthService authService;
+
+    public MeetingServiceImpl(MeetingRepository meetingRepository, UserRepository userRepository, LocationRepository locationRepository, MeetingMapper meetingMapper, AuthService authService) {
+        this.meetingRepository = meetingRepository;
+        this.userRepository = userRepository;
+        this.locationRepository = locationRepository;
+        this.meetingMapper = meetingMapper;
+        this.authService = authService;
+    }
 
     @Override
     public void createMeeting(MeetingRequest request) {
 
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        log.info("authentication {}", authentication);
-        if (authentication == null || authentication instanceof AnonymousAuthenticationToken)
-            throw new BadCredentialsException("Authorization error. Or empty barear token or bad credentials.");
-        String userName = BasicAuthUtils.getUserName(authentication);
-        User loggedUser = userRepository.findByUserName(userName)
-                .orElseThrow(() -> new UsernameNotFoundException("Logged user not found"));
-        Set<User> participants = validateUsers(request, loggedUser);
+        User loggedUser = authService.getLoggedUser();
+        Set<User> participants = validateParticipants(request, loggedUser);
         validateHours(request);
         saveMeeting(request, loggedUser, participants);
     }
 
     @Override
     public Set<MeetingResponse> getMeetings() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        log.info("authentication {}", authentication);
-        if (authentication == null || authentication instanceof AnonymousAuthenticationToken)
-            throw new BadCredentialsException("Authorization error. Or empty barear token or bad credentials.");
-        String userName = BasicAuthUtils.getUserName(authentication);
-        User loggedUser = userRepository.findByUserName(userName)
-                .orElseThrow(() -> new UsernameNotFoundException("Logged user not found"));
+        User loggedUser = authService.getLoggedUser();
         String defaultTimeZone = loggedUser.getDefaultTimeZone();
         return meetingRepository.findAll()
                 .stream()
@@ -81,13 +70,7 @@ public class MeetingServiceImpl implements MeetingService {
 
     @Override
     public MeetingResponse getMeetingById(String meetingId) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        log.info("authentication {}", authentication);
-        if (authentication == null || authentication instanceof AnonymousAuthenticationToken)
-            throw new BadCredentialsException("Authorization error. Or empty barear token or bad credentials.");
-        String userName = BasicAuthUtils.getUserName(authentication);
-        User loggedUser = userRepository.findByUserName(userName)
-                .orElseThrow(() -> new UsernameNotFoundException("Logged user not found"));
+        User loggedUser = authService.getLoggedUser();
         String defaultTimeZone = loggedUser.getDefaultTimeZone();
         Meeting meeting = meetingRepository.findById(UUID.fromString(meetingId))
                 .orElseThrow(MeetingNotFoundException::new);
@@ -98,13 +81,7 @@ public class MeetingServiceImpl implements MeetingService {
 
     @Override
     public Set<MeetingResponse> getMeetingBySearchParams(MeetingSearchParams request) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        log.info("authentication {}", authentication);
-        if (authentication == null || authentication instanceof AnonymousAuthenticationToken)
-            throw new BadCredentialsException("Authorization error. Or empty barear token or bad credentials.");
-        String userName = BasicAuthUtils.getUserName(authentication);
-        User loggedUser = userRepository.findByUserName(userName)
-                .orElseThrow(() -> new UsernameNotFoundException("Logged user not found"));
+        User loggedUser = authService.getLoggedUser();
         String defaultTimeZone = loggedUser.getDefaultTimeZone();
         LocalDateTime start = request.getDay() != null ? request.getDay().atStartOfDay() : null;
         LocalDateTime end = request.getDay() != null ? request.getDay().plusDays(1).atStartOfDay() : null;
@@ -137,11 +114,14 @@ public class MeetingServiceImpl implements MeetingService {
 
     }
 
-    private Set<User> validateUsers(MeetingRequest request, User loggedUser) {
+    private Set<User> validateParticipants(MeetingRequest request, User loggedUser) {
         Set<String> usersEmailsInSameCompanyAsLoggedUser = loggedUser.getCompany().getUsers()
                 .stream().map(User::getEmail).collect(Collectors.toSet());
         log.debug("usersEmailsInSameCompanyAsLoggedUser {}", usersEmailsInSameCompanyAsLoggedUser);
         request.getParticipants().forEach(email -> {
+            if(!email.matches("^(?=.{1,64}@)[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*@[^-][A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)*(\\.[A-Za-z]{2,})$")){
+                throw new InvalidInputParameterException("Invalid e-mail format");
+            }
             if (!usersEmailsInSameCompanyAsLoggedUser.contains(email))
                 throw new UsernameNotFoundException("Participant user not found");
         });
@@ -156,6 +136,7 @@ public class MeetingServiceImpl implements MeetingService {
         ZonedDateTime zonedEndTime = request.getEnd().atZone(defaultTimeZone);
 
         Meeting meeting = Meeting.builder()
+                .id(UUID.randomUUID())
                 .owner(loggedUser)
                 .name(request.getName())
                 .agenda(request.getAgenda())

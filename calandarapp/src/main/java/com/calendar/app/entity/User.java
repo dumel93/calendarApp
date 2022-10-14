@@ -6,6 +6,7 @@ import org.hibernate.annotations.GenericGenerator;
 import org.hibernate.annotations.Type;
 
 import javax.persistence.*;
+import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
 import java.util.HashSet;
 import java.util.Set;
@@ -21,7 +22,7 @@ import java.util.UUID;
 public class User {
 
     @Id
-    @Column(name = "userId", updatable = false, nullable = false, columnDefinition = "VARCHAR(36)")
+    @Column(name = "user_id", updatable = false, nullable = false, columnDefinition = "VARCHAR(36)")
     @GeneratedValue(generator = "uuid2")
     @GenericGenerator(name = "uuid2", strategy = "uuid2")
     @Type(type = "uuid-char")
@@ -35,6 +36,7 @@ public class User {
     @Column(name = "user_name", unique = true)
     private String userName;
 
+    @Pattern(regexp = "^(?=.{1,64}@)[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*@[^-][A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)*(\\.[A-Za-z]{2,})$", message = "Invalid e-mail format.")
     @Size(max = 50)
     @Column(name = "email", unique = true)
     private String email;

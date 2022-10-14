@@ -32,19 +32,15 @@ public class LocationServiceImpl implements LocationService {
     private final UserRepository userRepository;
     private final LocationRepository locationRepository;
     private final LocationMapper locationMapper;
+    private final AuthService authService;
 
     @Override
     public void createLocation(LocationRequest request) {
 
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        log.info("authentication {}", authentication);
-        if (authentication == null || authentication instanceof AnonymousAuthenticationToken)
-            throw new BadCredentialsException("Authorization error. Or empty barear token or bad credentials.");
-        String userName = BasicAuthUtils.getUserName(authentication);
-        User loggedUser = userRepository.findByUserName(userName)
-                .orElseThrow(() -> new UsernameNotFoundException("Logged user not found"));
+        User loggedUser = authService.getLoggedUser();
+        UUID uuid = UUID.randomUUID();
         Location location = Location.builder()
-                .id(UUID.randomUUID())
+                .id(uuid)
                 .manager(loggedUser)
                 .name(request.getName())
                 .address(request.getAddress())
@@ -59,13 +55,6 @@ public class LocationServiceImpl implements LocationService {
 
     @Override
     public LocationResponse getLocationById(String locationId) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        log.info("authentication {}", authentication);
-        if (authentication == null || authentication instanceof AnonymousAuthenticationToken)
-            throw new BadCredentialsException("Authorization error. Or empty barear token or bad credentials.");
-        String userName = BasicAuthUtils.getUserName(authentication);
-        User loggedUser = userRepository.findByUserName(userName)
-                .orElseThrow(() -> new UsernameNotFoundException("Logged user not found"));
         Location location = locationRepository.findById(UUID.fromString(locationId))
                 .orElseThrow(LocationNotFoundException::new);
         return locationMapper.toDTO(location);

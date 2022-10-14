@@ -12,9 +12,9 @@ public class FlywayConfig {
     @Bean
     public Flyway flyway(DataSource dataSource) {
         Flyway flyway = Flyway.configure()
-                .locations("db/migration/default")
+                .locations("db/migration/tenants")
                 .dataSource(dataSource)
-                .schemas(TenantIdentifierResolver.MASTER)
+                .schemas(TenantIdentifierResolver.DEFAULT_TENANT)
                 .load();
         flyway.migrate();
         return flyway;
